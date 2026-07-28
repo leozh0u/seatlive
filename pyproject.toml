@@ -7,3 +7,6 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Tests import `app` and `tests.conftest`, so the repo root has to be importable
+# however pytest is invoked (bare `pytest` does not add the working directory).
+pythonpath = ["."]
