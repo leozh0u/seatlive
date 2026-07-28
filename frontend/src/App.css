@@ -1,0 +1,98 @@
+:root {
+  --available: #1f7a3d;
+  --mine: #1d4ed8;
+  --taken: #8a8f98;
+  --booked: #7c2d12;
+}
+
+.page {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.subtitle {
+  margin: 0.35rem 0 1.75rem;
+  color: var(--muted);
+}
+
+.you {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.seats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  gap: 0.75rem;
+}
+
+.seat {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  cursor: pointer;
+}
+
+.seat:disabled {
+  cursor: not-allowed;
+}
+
+.seat .state {
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.seat.available { background: var(--available); }
+.seat.mine      { background: var(--mine); }
+.seat.held      { background: var(--taken); }
+.seat.booked    { background: var(--booked); }
+
+.status {
+  min-height: 1.5rem;
+  margin-top: 1.5rem;
+  color: var(--fg);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.legend span::before {
+  content: '';
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  margin-right: 0.4rem;
+  background: currentColor;
+}
+
+.legend .available::before { background: var(--available); }
+.legend .mine::before      { background: var(--mine); }
+.legend .held::before      { background: var(--taken); }
+.legend .booked::before    { background: var(--booked); }
+
+.connection {
+  margin-top: 1.5rem;
+  font-size: 0.8rem;
+  color: var(--faint);
+}
