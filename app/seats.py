@@ -1,26 +1,38 @@
-from psycopg_pool import ConnectionPool
-from db import DATABASE_URL
+from app.config import HOLD_TTL_SECONDS
+from app.db import get_pool
 
-pool = ConnectionPool(DATABASE_URL, min_size=1, max_size=10, open=True)
 
 def hold_seat(seat_id: int, user_id: str) -> bool:
     """
     Try to put a hold on a seat. Returns True if this call won the seat,
     False if someone else already holds/booked it.
+
+    The availability check and the mutation are one statement, so there is no
+    window between reading the status and writing it. Postgres serializes
+    concurrent writers to the same row, so exactly one caller sees rowcount 1.
     """
-    with pool.connection() as conn:
+    with get_pool().connection() as conn:
         cur = conn.execute(
             """
             UPDATE event_seats
-            SET status = 'held', held_by = %s, held_until = now() + interval '5 minutes'
+            SET status = 'held',
+                held_by = %s,
+                held_until = now() + make_interval(secs => %s)
             WHERE id = %s AND (status = 'available' OR (status = 'held' AND held_until < now()))
             """,
-            (user_id, seat_id),
+            (user_id, HOLD_TTL_SECONDS, seat_id),
         )
         return cur.rowcount == 1
 
+
 def confirm_seat(seat_id: int, user_id: str, idempotency_key: str) -> dict:
-    with pool.connection() as conn:
+    """
+    Turn a live hold into a booking.
+
+    Retries are safe: replaying the same idempotency key returns the original
+    outcome instead of erroring or booking a second time.
+    """
+    with get_pool().connection() as conn:
         # Atomic confirm: the hold must belong to this user, still be live,
         # and not already carry this idempotency key.
         cur = conn.execute(
@@ -46,9 +58,10 @@ def confirm_seat(seat_id: int, user_id: str, idempotency_key: str) -> dict:
             return {"confirmed": row[0] == "booked", "replay": True}
         return {"confirmed": False, "replay": False}
 
+
 def get_seats() -> list[dict]:
     """Current state of all seats; expired holds are reported as available."""
-    with pool.connection() as conn:
+    with get_pool().connection() as conn:
         rows = conn.execute(
             """
             SELECT id,
