@@ -1,5 +1,7 @@
 # SeatLive
 
+[![CI](https://github.com/leozh0u/seatlive/actions/workflows/ci.yml/badge.svg)](https://github.com/leozh0u/seatlive/actions/workflows/ci.yml)
+
 Real-time event seat-booking platform. Solves the core hard problem in any booking system: preventing double-booked seats under concurrent load, using an atomic conditional UPDATE in Postgres rather than application-level locking.
 
 ## Architecture
@@ -30,49 +32,62 @@ SET status = 'held', held_by = %s, held_until = now() + interval '5 minutes'
 WHERE id = %s AND (status = 'available' OR (status = 'held' AND held_until < now()))
 ```
 
-The check and the mutation are the same statement, so there is no gap between "is it available?" and "mark it held." Postgres serializes concurrent writes to the same row via row-level locking, so exactly one concurrent request wins. Verified under 50-thread `threading.Barrier` load in `test_hold_seat.py`.
+The check and the mutation are the same statement, so there is no gap between "is it available?" and "mark it held." Postgres serializes concurrent writes to the same row via row-level locking, so exactly one concurrent request wins. Verified under 50-thread `threading.Barrier` load in [`tests/test_concurrency.py`](tests/test_concurrency.py).
 
 ## Stack
 
-- **Backend:** Python 3.12+, FastAPI, psycopg (pooled via psycopg_pool)
+- **Backend:** Python 3.12+, FastAPI, psycopg (pooled via psycopg_pool), ruff
 - **Database:** PostgreSQL
 - **Real-time:** Redis pub/sub, WebSockets
 - **Frontend:** React + Vite
 - **Infra:** Docker Compose, GitHub Actions CI, Sentry error monitoring
 - **Load testing:** Locust
 
-## Local setup
+## Layout
 
-```bash
-git clone https://github.com/leozh0u/seat-booking.git
-cd seat-booking
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+```
+app/        config, connection pool, the seat queries, the FastAPI app
+tests/      concurrency tests against Postgres, plus HTTP and websocket tests
+frontend/   React demo: hold a seat, confirm it, watch other tabs update
+schema.sql  one table
+locustfile.py
 ```
 
-Start Postgres and Redis locally (Postgres.app + `brew services start redis`), or via Docker:
+## Local setup
+
+The whole stack, schema included, comes up with one command:
 
 ```bash
 docker compose up
 ```
 
-Apply the schema, then run the backend:
+That serves the API on `:8000` against Postgres on `:5433` and Redis on `:6380`.
+
+To run the backend directly instead, start Postgres and Redis yourself (Postgres.app and
+`brew services start redis` work fine), then:
 
 ```bash
+git clone https://github.com/leozh0u/seatlive.git
+cd seatlive
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
 python setup_db.py
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
 
-Run the frontend:
+The frontend is separate:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+npm install --prefix frontend
+npm run dev --prefix frontend
 ```
 
-Backend on `:8000`, frontend on `:5173`.
+Backend on `:8000`, frontend on `:5173`. Point the frontend somewhere else with
+`VITE_API_URL`. Open it in two tabs to watch one tab's hold land in the other.
+
+Configuration is all environment variables, read in [`app/config.py`](app/config.py):
+`DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `HOLD_TTL_SECONDS`, `SEAT_COUNT`, `SENTRY_DSN`.
 
 ## API
 
@@ -81,15 +96,22 @@ Backend on `:8000`, frontend on `:5173`.
 | `/seats` | GET | Current status of all seats (expired holds reported as available) |
 | `/seats/{seat_id}/hold` | POST | Atomically hold a seat (rate-limited, validated) |
 | `/seats/{seat_id}/confirm` | POST | Convert a hold into a booking, idempotent via client-supplied key |
+| `/healthz` | GET | Liveness check |
 | `/ws` | WebSocket | Real-time seat status broadcast |
 
 ## Testing
 
 ```bash
-pytest test_hold_seat.py -v
+pytest
 ```
 
-Covers: single-winner correctness under 50-thread concurrent load, expired-hold reclamation under concurrency, and confirm idempotency/replay detection.
+Needs Postgres and Redis running, same as the app. CI runs both as service containers.
+
+The concurrency tests cover single-winner correctness under 50 threads, expired-hold
+reclamation under the same contention, and repeated confirms of one idempotency key
+booking the seat exactly once. The API tests cover input validation, the hold/confirm
+flow over HTTP, the rate limiter returning 429, and a hold travelling out through Redis
+to a connected websocket.
 
 ## Load testing
 

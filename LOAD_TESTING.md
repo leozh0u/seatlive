@@ -8,9 +8,16 @@
 
 ## Command
 
+Locust pulls in gevent and flask, so it is not in `requirements-dev.txt`. Install it
+when you want to run this:
+
 ```bash
+pip install locust
 locust -f locustfile.py --host=http://localhost:8000 --headless -u 50 -r 10 -t 60s --csv=loadtest
 ```
+
+Rate limiting is on by default and will drown the run in 429s. Raise the limit or
+disable the middleware before measuring throughput.
 
 ## Results
 
@@ -26,6 +33,11 @@ locust -f locustfile.py --host=http://localhost:8000 --headless -u 50 -r 10 -t 6
 
 ## Notes
 
-- Zero failed requests under sustained load — the atomic UPDATE and idempotency-key confirm path held up correctly with no double-booking or duplicate-confirm errors.
-- Most `confirm` requests return `confirmed: false` in this test because the locustfile targets random seat/user pairs rather than confirming a seat the same simulated user actually holds — this test measures latency/throughput under load, not booking success rate (that's covered by the concurrency unit tests).
-- Bottleneck is likely the synchronous psycopg driver blocking the event loop under concurrent load — a known limitation noted in the interview cheat sheet.
+- Zero failed requests under sustained load. The atomic UPDATE and the idempotency-key
+  confirm path held up, with no double-booking and no duplicate-confirm errors.
+- Most `confirm` requests return `confirmed: false` here, because the locustfile aims at
+  random seat/user pairs rather than confirming a seat the same simulated user is holding.
+  This measures latency and throughput under load, not booking success rate. Correctness is
+  what the concurrency tests cover.
+- The likely bottleneck is the synchronous psycopg driver blocking the event loop under
+  concurrent load. That tradeoff is listed under known limitations in the README.
