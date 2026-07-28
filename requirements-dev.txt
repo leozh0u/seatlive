@@ -1,0 +1,8 @@
+-r requirements.txt
+
+pytest==9.1.1
+httpx==0.28.1
+ruff==0.14.6
+
+# Load testing pulls in gevent and flask, which CI has no use for.
+# Install it separately when you want to run locustfile.py: pip install locust
