@@ -1,20 +1,29 @@
+"""Apply the schema and seed the demo event's seats."""
+
 from pathlib import Path
+
 import psycopg
-from db import DATABASE_URL
+
+from app.config import DATABASE_URL, SEAT_COUNT
+
+SCHEMA = Path(__file__).parent / "schema.sql"
+
 
 def main():
-    sql = Path("schema.sql").read_text()
     with psycopg.connect(DATABASE_URL) as conn:
-        conn.execute(sql)
-        # Seed the 8 demo seats with stable ids 1-8 (matches API validation).
+        conn.execute(SCHEMA.read_text())
+        # Stable ids 1..SEAT_COUNT so the demo frontend and the load tests can
+        # address seats without looking them up first.
         conn.execute("TRUNCATE event_seats RESTART IDENTITY")
         conn.execute(
             """
             INSERT INTO event_seats (event_id, seat_label)
-            SELECT 1, 'A' || n FROM generate_series(1, 8) AS n
-            """
+            SELECT 1, 'A' || n FROM generate_series(1, %s) AS n
+            """,
+            (SEAT_COUNT,),
         )
-    print("Schema applied, 8 demo seats seeded.")
+    print(f"Schema applied, {SEAT_COUNT} demo seats seeded.")
+
 
 if __name__ == "__main__":
     main()
