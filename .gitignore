@@ -217,8 +217,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 loadtest_*.csv
-seatlive_cheatsheet.md
 
-# Local editor/agent config
-.claude/
+# Local editor config
 .DS_Store
